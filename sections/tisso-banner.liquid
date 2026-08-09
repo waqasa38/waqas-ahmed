@@ -1,0 +1,415 @@
+{{ 'tisso-banner.css' | asset_url | stylesheet_tag }}
+
+{%- liquid
+  assign logo_image = section.settings.logo_image
+  assign logo_text = section.settings.logo_text | default: shop.name
+  assign promo_text = section.settings.promo_text
+  assign button_label = section.settings.button_label
+  assign button_link = section.settings.button_link
+  assign menu = section.settings.menu
+-%}
+
+{%- capture button_arrow_svg -%}
+  <svg width="26" height="12" viewBox="0 0 26 12" fill="none" xmlns="http://www.w3.org/2000/svg" class="tisso-header__button-arrow-svg">
+    <path d="M0.75 4.77298L7.37629e-08 4.77298L-7.37629e-08 6.27298L0.75 6.27298L0.75 4.77298ZM25.2803 6.05331C25.5732 5.76042 25.5732 5.28554 25.2803 4.99265L20.5074 0.21968C20.2145 -0.073213 19.7396 -0.0732131 19.4467 0.21968C19.1538 0.512574 19.1538 0.987447 19.4467 1.28034L23.6893 5.52298L19.4467 9.76562C19.1538 10.0585 19.1538 10.5334 19.4467 10.8263C19.7396 11.1192 20.2145 11.1192 20.5074 10.8263L25.2803 6.05331ZM0.75 6.27298L24.75 6.27298L24.75 4.77298L0.75 4.77298L0.75 6.27298Z" fill="currentColor"/>
+  </svg>
+{%- endcapture -%}
+
+<header
+  class="tisso-header"
+  data-tisso-header
+  style="
+    --th-bg:{{ section.settings.bg_color }};
+    --th-panel-bg:{{ section.settings.panel_bg_color }};
+    --th-text:{{ section.settings.text_color }};
+    --th-btn-bg:{{ section.settings.button_bg_color }};
+    --th-btn-text:{{ section.settings.button_text_color }};
+    --th-btn-hover-bg:{{ section.settings.button_hover_bg_color }};
+    --th-btn-hover-text:{{ section.settings.button_hover_text_color }};
+  "
+>
+  <div class="tisso-header__bar page-width">
+
+    <button
+      type="button"
+      class="tisso-header__toggle"
+      data-menu-toggle
+      aria-expanded="false"
+      aria-controls="TissoHeaderPanel-{{ section.id }}"
+      aria-label="Open menu"
+    >
+      <span class="tisso-header__icon tisso-header__icon--burger" aria-hidden="true">
+        <svg width="20" height="12" viewBox="0 0 20 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1 6H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M1 1H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M1 11H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="tisso-header__icon tisso-header__icon--close" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1 13.9994L13.7279 1.27147" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M1 1L13.7279 13.7279" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+    </button>
+
+    <a href="{{ routes.root_url }}" class="tisso-header__logo" aria-label="{{ shop.name }} home">
+      {%- if logo_image != blank -%}
+        <img
+          src="{{ logo_image | image_url: width: 400 }}"
+          alt="{{ logo_image.alt | default: shop.name }}"
+          width="{{ logo_image.width }}"
+          height="{{ logo_image.height }}"
+          loading="eager"
+        >
+      {%- else -%}
+        <span class="tisso-header__logo-text">{{ logo_text }}</span>
+      {%- endif -%}
+    </a>
+
+    <div class="tisso-header__promo">
+      {%- if promo_text != blank -%}
+        <p class="tisso-header__text">{{ promo_text }}</p>
+      {%- endif -%}
+      {%- if button_label != blank -%}
+        <a
+          href="{{ button_link | default: '#' }}"
+          class="tisso-header__button"
+        >
+          <span class="tisso-header__button-label">{{ button_label }}</span>
+          <span class="tisso-header__button-arrow" aria-hidden="true">{{ button_arrow_svg }}</span>
+        </a>
+      {%- endif -%}
+    </div>
+  </div>
+
+  <div
+    id="TissoHeaderPanel-{{ section.id }}"
+    class="tisso-header__panel"
+    data-menu-panel
+  >
+    <div class="tisso-header__panel-inner">
+      {%- if menu != blank -%}
+        <nav class="tisso-header__nav" aria-label="Main menu">
+          <ul class="tisso-header__nav-list">
+            {%- for link in menu.links -%}
+              <li class="tisso-header__nav-item">
+                <a href="{{ link.url }}" class="tisso-header__nav-link">{{ link.title }}</a>
+              </li>
+            {%- endfor -%}
+          </ul>
+        </nav>
+      {%- endif -%}
+
+      {%- if promo_text != blank -%}
+        <p class="tisso-header__text tisso-header__text--panel">{{ promo_text }}</p>
+      {%- endif -%}
+
+      {%- if button_label != blank -%}
+        <a
+          href="{{ button_link | default: '#' }}"
+          class="tisso-header__button tisso-header__button--panel"
+        >
+          <span class="tisso-header__button-label">{{ button_label }}</span>
+          <span class="tisso-header__button-arrow" aria-hidden="true">{{ button_arrow_svg }}</span>
+        </a>
+      {%- endif -%}
+    </div>
+  </div>
+</header>
+
+{%- liquid
+  assign banner_image = section.settings.banner_image
+  assign banner_heading = section.settings.banner_heading
+  assign banner_description = section.settings.banner_description
+  assign banner_description_mobile = section.settings.banner_description_mobile
+  assign banner_button_label = section.settings.banner_button_label
+  assign banner_button_link = section.settings.banner_button_link
+  assign banner_footer_text = section.settings.banner_footer_text
+  assign banner_footer_mobile = section.settings.banner_footer_mobile
+-%}
+
+{%- if banner_image != blank or banner_heading != blank -%}
+  <div
+    class="tisso-banner"
+    style="
+      --tb-heading-color:{{ section.settings.banner_heading_color }};
+      --tb-text-color:{{ section.settings.banner_text_color }};
+      --tb-btn-bg:{{ section.settings.banner_button_bg_color }};
+      --tb-btn-text:{{ section.settings.banner_button_text_color }};
+      --tb-btn-hover-bg:{{ section.settings.banner_button_hover_bg_color }};
+      --tb-btn-hover-text:{{ section.settings.banner_button_hover_text_color }};
+      --tb-footer-bg:{{ section.settings.banner_footer_bg_color }};
+      --tb-footer-text:{{ section.settings.banner_footer_text_color }};
+    "
+  >
+    <div class="tisso-banner__intro">
+      {%- if banner_heading != blank -%}
+        <h2 class="tisso-banner__heading">{{ banner_heading }}</h2>
+      {%- endif -%}
+      {%- if banner_description_mobile != blank -%}
+        <div class="tisso-banner__description">{{ banner_description_mobile }}</div>
+      {%- elsif banner_description != blank -%}
+        <div class="tisso-banner__description">{{ banner_description }}</div>
+      {%- endif -%}
+    </div>
+
+    <div class="tisso-banner__media">
+      {%- if banner_image != blank -%}
+        <img
+          src="{{ banner_image | image_url: width: 1600 }}"
+          srcset="{{ banner_image | image_url: width: 800 }} 800w, {{ banner_image | image_url: width: 1200 }} 1200w, {{ banner_image | image_url: width: 1600 }} 1600w, {{ banner_image | image_url: width: 2000 }} 2000w"
+          sizes="100vw"
+          alt="{{ banner_image.alt | default: banner_heading }}"
+          width="{{ banner_image.width }}"
+          height="{{ banner_image.height }}"
+          class="tisso-banner__image"
+          loading="lazy"
+        >
+      {%- endif -%}
+
+      <div class="tisso-banner__overlay">
+        <div class="tisso-banner__overlay-text">
+          {%- if banner_heading != blank -%}
+            <h2 class="tisso-banner__heading tisso-banner__heading--overlay">{{ banner_heading }}</h2>
+          {%- endif -%}
+          {%- if banner_description != blank -%}
+            <div class="tisso-banner__description tisso-banner__description--overlay">{{ banner_description }}</div>
+          {%- endif -%}
+        </div>
+
+        {%- if banner_button_label != blank -%}
+          <a
+            href="{{ banner_button_link | default: '#' }}"
+            class="tisso-banner__button"
+          >
+            <span class="tisso-header__button-label">{{ banner_button_label }}</span>
+            <span class="tisso-header__button-arrow" aria-hidden="true">{{ button_arrow_svg }}</span>
+          </a>
+        {%- endif -%}
+      </div>
+    </div>
+
+
+    
+{%- if banner_footer_text != blank or banner_footer_mobile != blank -%}
+  <div class="tisso-banner__footer">
+    <p class="desktop">{{ banner_footer_text }}</p>
+    <p class="mobile">{{ banner_footer_mobile | default: banner_footer_text }}</p>
+  </div>
+{%- endif -%}
+
+
+  </div>
+{%- endif -%}
+
+<script src="{{ 'tisso-banner.js' | asset_url }}" defer="defer"></script>
+
+{% schema %}
+{
+  "name": "Tisso Banner",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Logo"
+    },
+    {
+      "type": "image_picker",
+      "id": "logo_image",
+      "label": "Logo image"
+    },
+    {
+      "type": "text",
+      "id": "logo_text",
+      "label": "Logo text (used if no image is set)",
+      "default": "Tisso Vison"
+    },
+    {
+      "type": "header",
+      "content": "Menu"
+    },
+    {
+      "type": "link_list",
+      "id": "menu",
+      "label": "Menu",
+      "info": "Shown inside the mobile menu panel."
+    },
+    {
+      "type": "header",
+      "content": "Promo text & button"
+    },
+    {
+      "type": "text",
+      "id": "promo_text",
+      "label": "Promo text",
+      "default": "Find the ideal gift for your loved ones."
+    },
+    {
+      "type": "text",
+      "id": "button_label",
+      "label": "Button label",
+      "default": "Choose gift"
+    },
+    {
+      "type": "url",
+      "id": "button_link",
+      "label": "Button link"
+    },
+    {
+      "type": "header",
+      "content": "Colors"
+    },
+    {
+      "type": "color",
+      "id": "bg_color",
+      "label": "Header background",
+      "default": "#F7F6F4"
+    },
+    {
+      "type": "color",
+      "id": "panel_bg_color",
+      "label": "Mobile panel background",
+      "default": "#EDECEA"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#141414"
+    },
+    {
+      "type": "color",
+      "id": "button_bg_color",
+      "label": "Button background",
+      "default": "#F5E900"
+    },
+    {
+      "type": "color",
+      "id": "button_text_color",
+      "label": "Button text",
+      "default": "#141414"
+    },
+    {
+      "type": "color",
+      "id": "button_hover_bg_color",
+      "label": "Button hover background",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "button_hover_text_color",
+      "label": "Button hover text",
+      "default": "#FFFFFF"
+    },
+    {
+      "type": "header",
+      "content": "Banner"
+    },
+    {
+      "type": "image_picker",
+      "id": "banner_image",
+      "label": "Banner image"
+    },
+    {
+      "type": "text",
+      "id": "banner_heading",
+      "label": "Heading",
+      "default": "The Gift Guide"
+    },
+    {
+      "type": "richtext",
+      "id": "banner_description",
+      "label": "Description (desktop)",
+      "default": "<p>Discover Joy: Your Ultimate Holiday Gift Destination. Explore our curated selection and find the perfect gifts to delight your loved ones this holiday season.</p>"
+    },
+    {
+      "type": "richtext",
+      "id": "banner_description_mobile",
+      "label": "Description (mobile)",
+      "info": "If left blank, the desktop description is used instead.",
+      "default": "<p>Discover Joy: Your Ultimate Holiday Gift Destination.</p>"
+    },
+    {
+      "type": "text",
+      "id": "banner_button_label",
+      "label": "Button label",
+      "default": "Shop now"
+    },
+    {
+      "type": "url",
+      "id": "banner_button_link",
+      "label": "Button link"
+    },
+    {
+      "type": "text",
+      "id": "banner_footer_text",
+      "label": "Footer strip text",
+      "default": "Sustainable, ethically made clothes in sizes XXS to 6XL"
+    },
+      {
+      "type": "text",
+      "id": "banner_footer_mobile",
+      "label": "Footer strip (mobile)",
+      "info": "If left blank, the desktop description is used instead.",
+       "default": "SUSTAINABLE, ETHICALLY MADE ACTIVEWEAR"
+    },
+    {
+      "type": "header",
+      "content": "Banner colors"
+    },
+    {
+      "type": "color",
+      "id": "banner_heading_color",
+      "label": "Heading color",
+      "default": "#141414"
+    },
+    {
+      "type": "color",
+      "id": "banner_text_color",
+      "label": "Description color",
+      "default": "#141414"
+    },
+    {
+      "type": "color",
+      "id": "banner_button_bg_color",
+      "label": "Button background",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "banner_button_text_color",
+      "label": "Button text",
+      "default": "#FFFFFF"
+    },
+    {
+      "type": "color",
+      "id": "banner_button_hover_bg_color",
+      "label": "Button hover background",
+      "default": "#F5E900"
+    },
+    {
+      "type": "color",
+      "id": "banner_button_hover_text_color",
+      "label": "Button hover text",
+      "default": "#141414"
+    },
+    {
+      "type": "color",
+      "id": "banner_footer_bg_color",
+      "label": "Footer strip background",
+      "default": "#F7F6F4"
+    },
+    {
+      "type": "color",
+      "id": "banner_footer_text_color",
+      "label": "Footer strip text color",
+      "default": "#141414"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Tisso Banner"
+    }
+  ]
+}
+{% endschema %}
