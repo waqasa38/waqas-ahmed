@@ -1,0 +1,1980 @@
+{% comment %}
+  Tisso Vision in the Wild
+  - Exactly six product blocks, selectable in Theme Customizer
+  - Figma-style desktop/mobile product grid
+  - Figma-style compact product popup, anchored to the clicked hotspot
+  - Dynamic product/variant information
+  - Vanilla JavaScript only
+  - AJAX Add to Cart for the selected product + optional companion product, then redirect to cart
+  - Black + Medium automatically adds the configured Soft Winter Jacket
+{% endcomment %}
+
+{%- capture button_arrow_svg -%}
+  <svg width="26" height="12" viewBox="0 0 26 12" fill="none" xmlns="http://www.w3.org/2000/svg" class="tisso-header__button-arrow-svg">
+    <path d="M0.75 4.77298L7.37629e-08 4.77298L-7.37629e-08 6.27298L0.75 6.27298L0.75 4.77298ZM25.2803 6.05331C25.5732 5.76042 25.5732 5.28554 25.2803 4.99265L20.5074 0.21968C20.2145 -0.073213 19.7396 -0.0732131 19.4467 0.21968C19.1538 0.512574 19.1538 0.987447 19.4467 1.28034L23.6893 5.52298L19.4467 9.76562C19.1538 10.0585 19.1538 10.5334 19.4467 10.8263C19.7396 11.1192 20.2145 11.1192 20.5074 10.8263L25.2803 6.05331ZM0.75 6.27298L24.75 6.27298L24.75 4.77298L0.75 4.77298L0.75 6.27298Z" fill="currentColor"/>
+  </svg>
+{%- endcapture -%}
+
+<section id="tisso-vision-{{ section.id }}" class="tisso-vision">
+  <div class="tisso-vision__inner">
+    {% if section.settings.heading != blank %}
+      <h2 class="tisso-vision__heading">{{ section.settings.heading | escape }}</h2>
+    {% endif %}
+
+    <div class="tisso-vision__grid">
+      {% for block in section.blocks limit: 6 %}
+        {% assign product = block.settings.product %}
+
+        <article
+          class="tisso-card"
+          {{ block.shopify_attributes }}
+          style="--hotspot-x: {{ block.settings.hotspot_x }}%; --hotspot-y: {{ block.settings.hotspot_y }}%;"
+        >
+          {% if product != blank %}
+            <div class="tisso-card__image-wrap">
+              {% if product.featured_image %}
+                {{
+                  product.featured_image
+                  | image_url: width: 1200
+                  | image_tag:
+                    loading: 'lazy',
+                    widths: '360, 540, 720, 900, 1200',
+                    sizes: '(min-width: 750px) 33.333vw, 50vw',
+                    class: 'tisso-card__image',
+                    alt: product.featured_image.alt | default: product.title | escape
+                }}
+              {% else %}
+                {{ 'product-1' | placeholder_svg_tag: 'tisso-card__placeholder' }}
+              {% endif %}
+
+              <button
+                type="button"
+                class="tisso-card__plus"
+                aria-label="View {{ product.title | escape }}"
+                data-product-index="{{ forloop.index0 }}"
+                aria-haspopup="dialog"
+                aria-expanded="false"
+              >
+                <span aria-hidden="true">+</span>
+              </button>
+            </div>
+          {% else %}
+            <div class="tisso-card__image-wrap tisso-card__image-wrap--empty">
+              {{ 'product-1' | placeholder_svg_tag: 'tisso-card__placeholder' }}
+              <span class="tisso-card__empty-text">Select a product</span>
+            </div>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="tisso-modal" data-tisso-modal hidden>
+    <div class="tisso-modal__backdrop" data-tisso-close></div>
+
+    <div
+      class="tisso-modal__dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tisso-modal-title-{{ section.id }}"
+    >
+      <button type="button" class="tisso-modal__close" aria-label="Close" data-tisso-close>
+        <span aria-hidden="true">×</span>
+      </button>
+
+      <div class="tisso-modal__content">
+        <div class="tisso-modal__media">
+          <img
+            data-tisso-modal-image
+            alt=""
+            width="800"
+            height="1000"
+            loading="lazy"
+            hidden
+          >
+        </div>
+
+        <div class="tisso-modal__details">
+          <h3 id="tisso-modal-title-{{ section.id }}" data-tisso-modal-title></h3>
+          <div class="tisso-modal__price" data-tisso-modal-price></div>
+          <div class="tisso-modal__description" data-tisso-modal-description></div>
+
+          <form data-tisso-product-form>
+            <div class="tisso-variants" data-tisso-variants></div>
+
+            <p class="tisso-modal__error" data-tisso-error role="alert" hidden></p>
+
+            <button type="submit" class="tisso-add" data-tisso-add>
+              <span class="tisso-header__button-label" data-tisso-add-label>ADD TO CART</span>
+             <span class="tisso-header__button-arrow" aria-hidden="true">{{ button_arrow_svg }}</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="application/json" data-tisso-products>
+    [
+      {% for block in section.blocks limit: 6 %}
+        {% assign product = block.settings.product %}
+        {% if product != blank %}
+          {
+            "id": {{ product.id | json }},
+            "title": {{ product.title | json }},
+            "description": {{ product.description | strip_html | json }},
+            "url": {{ product.url | json }},
+            "featuredImage": {% if product.featured_image %}{{ product.featured_image | image_url: width: 1200 | json }}{% else %}null{% endif %},
+            "price": {{ product.price | json }},
+            "priceFormatted": {{ product.price | money | json }},
+            "available": {{ product.available | json }},
+            "options": {{ product.options_with_values | json }},
+            "variants": [
+              {% for variant in product.variants %}
+                {
+                  "id": {{ variant.id | json }},
+                  "title": {{ variant.title | json }},
+                  "available": {{ variant.available | json }},
+                  "price": {{ variant.price | json }},
+                  "priceFormatted": {{ variant.price | money | json }},
+                  "options": {{ variant.options | json }},
+                  "featuredImage": {% if variant.featured_image %}{{ variant.featured_image | image_url: width: 1200 | json }}{% else %}null{% endif %}
+                }{% unless forloop.last %},{% endunless %}
+              {% endfor %}
+            ]
+          }{% unless forloop.last %},{% endunless %}
+        {% endif %}
+      {% endfor %}
+    ]
+  </script>
+
+  <script type="application/json" data-tisso-companion>
+    {% if section.settings.companion_product != blank %}
+      {
+        "id": {{ section.settings.companion_product.id | json }},
+        "title": {{ section.settings.companion_product.title | json }},
+        "variantId": {% if section.settings.companion_product.selected_or_first_available_variant != blank %}{{ section.settings.companion_product.selected_or_first_available_variant.id | json }}{% else %}null{% endif %},
+        "variants": [
+          {% for variant in section.settings.companion_product.variants %}
+            {
+              "id": {{ variant.id | json }},
+              "available": {{ variant.available | json }}
+            }{% unless forloop.last %},{% endunless %}
+          {% endfor %}
+        ]
+      }
+    {% else %}
+      null
+    {% endif %}
+  </script>
+
+  <style>
+    #tisso-vision-{{ section.id }} {
+      --tisso-bg: {{ section.settings.background }};
+      --tisso-gap: {{ section.settings.grid_gap }}px;
+      background: var(--tisso-bg);
+      padding: {{ section.settings.section_padding }}px 0;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-vision__inner {
+      width: min(calc(100% - 48px), {{ section.settings.max_width }}px);
+      margin: 0 auto;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-vision__heading {
+      margin: 0 0 34px;
+      color: #111;
+      font-family: Lustria, Georgia, "Times New Roman", serif;
+      font-size: 36px;
+      font-weight: 400;
+      font-style: normal;
+      line-height: 1.05;
+      letter-spacing: 0px;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-vision__grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--tisso-gap);
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-card {
+      min-width: 0;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-card__image-wrap {
+      position: relative;
+      overflow: hidden;
+      aspect-ratio: 1 / 1;
+      background: #e8e8e8;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-card__image,
+    #tisso-vision-{{ section.id }} .tisso-card__placeholder {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Each block can have its own Figma hotspot coordinates. */
+    #tisso-vision-{{ section.id }} .tisso-card__plus {
+      position: absolute;
+      left: var(--hotspot-x);
+      top: var(--hotspot-y);
+      width: 30px;
+      height: 30px;
+      transform: translate(-50%, -50%);
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: #fff;
+      color: #111;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, .18);
+      cursor: pointer;
+      font-family: Arial, sans-serif;
+      font-size: 20px;
+      font-weight: 300;
+      line-height: 30px;
+      z-index: 2;
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-card__plus:hover,
+    #tisso-vision-{{ section.id }} .tisso-card__plus[aria-expanded="true"] {
+      transform: translate(-50%, -50%) scale(1.08);
+      box-shadow: 0 3px 10px rgba(0, 0, 0, .22);
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-card__image-wrap--empty {
+      display: grid;
+      place-items: center;
+      position: relative;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-card__empty-text {
+      position: absolute;
+      color: #555;
+      font-size: 13px;
+    }
+
+    /*
+     * Popup
+     * The wrapper is fixed + inset:0 purely as a positioning context; it is
+     * pointer-events:none by default so it never blocks or reflows the page.
+     * The backdrop and dialog opt back into pointer events only while open.
+     * Opening/closing only ever animates opacity + transform, so the
+     * surrounding section never moves or reflows.
+     */
+    #tisso-vision-{{ section.id }} .tisso-modal[hidden] {
+      display: none;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      pointer-events: none;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(17, 17, 17, .18);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s ease;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal.is-open .tisso-modal__backdrop {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__dialog {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 1;
+      width: min(92vw, 390px);
+      overflow: visible;
+      background: #fff;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, .22);
+      opacity: 0;
+      transform: translateY(6px) scale(.98);
+      transform-origin: top left;
+      pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease;
+      will-change: transform, opacity;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal.is-open .tisso-modal__dialog {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 4;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 0;
+      background: #fff;
+      color: #111;
+      cursor: pointer;
+      font-family: Arial, sans-serif;
+      font-size: 25px;
+      font-weight: 300;
+      line-height: 28px;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__content {
+      display: grid;
+      grid-template-columns: 145px minmax(0, 1fr);
+      min-height: 245px;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__media {
+      min-width: 0;
+      background: #eee;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__media img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 245px;
+      object-fit: cover;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__details {
+      min-width: 0;
+      padding: 22px 20px 20px;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__details h3 {
+      margin: 0 28px 10px 0;
+      color: #000000;
+      font-family: Jost, -apple-system, BlinkMacSystemFont, Helvetica Neue, Arial, sans-serif;
+      font-size: 16px;
+      font-weight: 300;
+      line-height: 1.2;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__price {
+      margin-bottom: 12px;
+      color: #000000;
+      font-size: 16px;
+      line-height: 1.2;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__description {
+      margin-bottom: 16px;
+      color: #000000;
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    /* Figma: Color = segmented buttons with a colour swatch, Size = dropdown. */
+    #tisso-vision-{{ section.id }} .tisso-variant {
+      margin-bottom: 12px;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant__label {
+      display: block;
+      margin-bottom: 6px;
+      color: #000000;
+      font-size: 11px;
+      line-height: 1.2;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant__values {
+      display: flex;
+      flex-wrap: wrap;
+      border: 1px solid #000;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant__value {
+      position: relative;
+      min-width: 0;
+      flex: 1 1 50%;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant__value + .tisso-variant__value {
+      border-left: 1px solid #000;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant__input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant__button {
+      display: flex;
+      align-items: stretch;
+      overflow: hidden;
+      color: #000;
+      background: #fff;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      text-align: left;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant__button-text {
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      padding: 10px 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Flush, full-height colour bar at the leading edge of each segment. */
+    #tisso-vision-{{ section.id }} .tisso-variant__swatch {
+      width: 5px;
+      flex: 0 0 5px;
+      align-self: stretch;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant__input:checked + .tisso-variant__button {
+      color: #fff;
+      background: #000;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant__input:disabled + .tisso-variant__button {
+      color: #aaa;
+      cursor: not-allowed;
+      text-decoration: line-through;
+    }
+
+    /*
+     * Custom Size control (Components 212/213). A native <select> is kept
+     * in the DOM (visually hidden) purely as the source of truth for
+     * value/availability logic already wired up in updateVariantAvailability;
+     * this custom trigger + listbox is what the user actually sees and
+     * clicks, so it can match the Figma states exactly.
+     */
+    #tisso-vision-{{ section.id }} .tisso-variant__select-native {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size {
+      position: relative;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__trigger {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+      min-height: 44px;
+      padding: 0 14px;
+      border: 1px solid #111;
+      border-radius: 0;
+      outline: 0;
+      background: #fff;
+      color: #111;
+      font-family: inherit;
+      font-size: 13px;
+      line-height: 1.2;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__trigger:disabled {
+      color: #aaa;
+      border-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__value {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__chevron {
+      flex: 0 0 auto;
+      width: 8px;
+      height: 8px;
+      border-right: 1.5px solid #000;
+      border-bottom: 1.5px solid #000;
+      transform: rotate(45deg);
+      transition: transform .15s ease;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size[data-open="true"] .tisso-size__chevron {
+      transform: rotate(-135deg);
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__list {
+      position: absolute;
+      z-index: 5;
+      top: calc(100% - 1px);
+      left: 0;
+      right: 0;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      border: 1px solid #000;
+      border-top: 0;
+      background: #fff;
+      max-height: 190px;
+      overflow-y: auto;
+      box-shadow: 0 12px 24px rgba(0, 0, 0, .12);
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__list[hidden] {
+      display: none;
+    }
+
+    /*
+     * Keep the Size dropdown fully scrollable, but hide the browser's
+     * native scrollbar so it matches the Figma design.
+     */
+    #tisso-vision-{{ section.id }} .tisso-size__list {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__list::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__option {
+      padding: 12px 14px;
+      color: #000;
+      font-size: 13px;
+      line-height: 1.2;
+      cursor: pointer;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__option:hover,
+    #tisso-vision-{{ section.id }} .tisso-size__option.is-selected {
+      background: #000;
+      color: #fff;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__option[aria-disabled="true"] {
+      color: #ccc;
+      cursor: not-allowed;
+      text-decoration: line-through;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__option[aria-disabled="true"]:hover {
+      background: #fff;
+      color: #ccc;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-add {
+      width: 100%;
+      min-height: 38px;
+      margin-top: 10px;
+      padding: 8px 10px;
+      border: 0;
+      background: #000;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 30px;
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 400;
+      line-height: 1;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-add:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-add__arrow {
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__error {
+      margin: 7px 0 0;
+      color: #b42318;
+      font-size: 10px;
+      line-height: 1.3;
+    }
+
+    /*
+     * Locking scroll toggles overflow only; the JS compensates the
+     * disappearing scrollbar with padding-right so nothing shifts
+     * horizontally when the popup opens or closes.
+     */
+    body.tisso-modal-open-{{ section.id }} {
+      overflow: hidden;
+    }
+
+    @media (max-width: 749px) {
+      #tisso-vision-{{ section.id }} {
+        padding-top: {{ section.settings.mobile_section_padding }}px;
+        padding-bottom: {{ section.settings.mobile_section_padding }}px;
+      }
+
+      #tisso-vision-{{ section.id }} .tisso-vision__inner {
+        width: calc(100% - 24px);
+      }
+
+      #tisso-vision-{{ section.id }} .tisso-vision__heading {
+        margin-bottom: 18px;
+        font-size: 24px;
+        text-align: center;
+        padding-bottom: 10px;
+      }
+
+      #tisso-vision-{{ section.id }} .tisso-vision__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 2px;
+      }
+
+      #tisso-vision-{{ section.id }} .tisso-card__plus {
+        width: 24px;
+        height: 24px;
+        font-size: 16px;
+        line-height: 24px;
+      }
+
+      #tisso-vision-{{ section.id }} .tisso-modal__dialog {
+        width: min(94vw, 365px);
+      }
+
+      #tisso-vision-{{ section.id }} .tisso-modal__content {
+        grid-template-columns: 112px minmax(0, 1fr);
+        min-height: 225px;
+      }
+
+      #tisso-vision-{{ section.id }} .tisso-modal__media img {
+        min-height: 225px;
+      }
+
+      #tisso-vision-{{ section.id }} .tisso-modal__details {
+        padding: 18px 14px 14px;
+      }
+
+      #tisso-vision-{{ section.id }} .tisso-modal__details h3 {
+        font-size: 14px;
+      }
+
+      #tisso-vision-{{ section.id }} .tisso-modal__price {
+        font-size: 14px;
+      }
+
+      #tisso-vision-{{ section.id }} .tisso-modal__description {
+        font-size: 9px;
+      }
+    }
+
+    /*
+     * Figma popup styling — intentionally NOT mobile-only.
+     * The same popup proportions, controls, borders and spacing are used
+     * on desktop and mobile. The popup itself never changes size/position
+     * when the Size dropdown is opened.
+     */
+    #tisso-vision-{{ section.id }} .tisso-modal__dialog {
+      width: 365px;
+      max-width: calc(100vw - 24px);
+      overflow: hidden;
+      background: #fff;
+      box-sizing: border-box;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__close {
+      top: 10px;
+      right: 14px;
+      width: 28px;
+      height: 28px;
+      font-size: 25px;
+      line-height: 28px;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__content {
+      display: grid;
+      grid-template-columns: 138px minmax(0, 1fr);
+      column-gap: 9px;
+      min-height: 0;
+      padding: 38px 16px 23px;
+      box-sizing: border-box;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__media {
+      width: 138px;
+      height: 164px;
+      min-width: 0;
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__media img {
+      width: 138px;
+      height: 164px;
+      min-height: 0;
+      object-fit: cover;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__details {
+      display: contents;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__details h3 {
+      grid-column: 2;
+      grid-row: 1;
+      align-self: start;
+      margin: 17px 12px 0 0;
+      color: #111;
+      font-family: Jost;
+      font-size: 16px;
+      font-weight: 300;
+      line-height: 1.18;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__price {
+      grid-column: 2;
+      grid-row: 1;
+      align-self: start;
+      margin: 57px 0 0;
+      color: #111;
+      font-family: Lustria, Georgia, "Times New Roman", serif;
+      font-size: 16px;
+      line-height: 1.15;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__description {
+      grid-column: 2;
+      grid-row: 1;
+      align-self: start;
+      margin: 103px 0 0;
+      color: #222;
+      font-family: Jost, -apple-system, BlinkMacSystemFont, Helvetica Neue, Arial, sans-serif;
+      font-size: 12px;
+      font-weight: 300;
+      line-height: 1.2;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__details form {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      width: 100%;
+      min-width: 0;
+      padding-top: 34px;
+      box-sizing: border-box;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant {
+      margin-bottom: 17px;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant__label {
+      margin-bottom: 8px;
+      font-size: 14px;
+      line-height: 1.1;
+      font-weight: 400;
+      font-family: 'Jost';
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant__values {
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid #555;
+      box-sizing: border-box;
+      font-size: 14px;
+      line-height: 1.1;
+      font-weight: 400;
+      font-family: 'Jost';
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant__value {
+      min-height: 46px;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant__value + .tisso-variant__value {
+      border-left: 1px solid #111;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant__button {
+      width: 100%;
+      min-height: 46px;
+      font-size: 19px;
+      line-height: 1;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant__button-text {
+      width: 100%;
+      padding: 0 16px;
+      font-size: 18px;
+      line-height: 1.1;
+      font-weight: 400;
+      font-family: 'Jost';
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-variant__swatch {
+      width: 5px;
+      flex-basis: 5px;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size {
+      width: 100%;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__trigger {
+      width: 100%;
+      height: 48px;
+      min-height: 48px;
+      padding: 0 15px;
+      border: 1px solid #555;
+      border-radius: 0;
+      box-sizing: border-box;
+      font-size: 18px;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__chevron {
+      width: 9px;
+      height: 9px;
+      margin-right: 2px;
+      border-right-width: 1.5px;
+      border-bottom-width: 1.5px;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__list {
+      position: absolute;
+      z-index: 10;
+      top: calc(100% - 1px);
+      left: 0;
+      right: 0;
+      max-height: 145px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      border: 1px solid #111;
+      border-top: 0;
+      box-sizing: border-box;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, .12);
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__option {
+      min-height: 44px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      box-sizing: border-box;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-add {
+      height: 53px;
+      min-height: 53px;
+      margin-top: 28px;
+      box-sizing: border-box;
+      font-size: 17px;
+      justify-content: center;
+      gap: 30px;
+      padding: 15px 0 15px 20px;
+      font-size: 16px;
+      letter-spacing: 0;
+      font-weight: 400;
+      font-family: 'Jost';
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-add__arrow {
+      font-size: 28px;
+      line-height: 1;
+      font-weight: 300;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-modal__error {
+      margin-top: 8px;
+      font-size: 11px;
+    }
+
+    /*
+     * Size dropdown — ONLY the requested visual changes:
+     * 1. Separate right-side chevron box with vertical divider.
+     * 2. White dropdown option background.
+     *
+     * Existing height, typography, hover and selected-state styling remain
+     * unchanged from the previous version.
+     */
+    #tisso-vision-{{ section.id }} .tisso-size__trigger {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 48px;
+      align-items: stretch;
+      gap: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__value {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      padding-left: 12px;
+      box-sizing: border-box;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__chevron {
+      width: auto;
+      height: auto;
+      margin: 0;
+      border: 0;
+      border-left: 1px solid #111;
+      border-radius: 0;
+      transform: none;
+      position: relative;
+      box-sizing: border-box;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__chevron::after {
+      content: "";
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      left: 50%;
+      top: 50%;
+      border-right: 1.5px solid #111;
+      border-bottom: 1.5px solid #111;
+      transform: translate(-50%, -65%) rotate(45deg);
+      box-sizing: border-box;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size[data-open="true"] .tisso-size__chevron {
+      transform: none;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size[data-open="true"] .tisso-size__chevron::after {
+      transform: translate(-50%, -35%) rotate(-135deg);
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__list {
+      background: #fff;
+    }
+
+    #tisso-vision-{{ section.id }} .tisso-size__option {
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #tisso-vision-{{ section.id }} .tisso-modal__dialog,
+      #tisso-vision-{{ section.id }} .tisso-modal__backdrop {
+        transition: none;
+      }
+    }
+  </style>
+
+  <script>
+    (() => {
+      const root = document.getElementById('tisso-vision-{{ section.id }}');
+      if (!root) return;
+
+      const sectionId = '{{ section.id }}';
+      const shopRoot = window.Shopify && window.Shopify.routes && window.Shopify.routes.root
+        ? window.Shopify.routes.root
+        : '/';
+
+      const products = JSON.parse(
+        root.querySelector('[data-tisso-products]').textContent || '[]'
+      );
+
+      const companion = JSON.parse(
+        root.querySelector('[data-tisso-companion]').textContent || 'null'
+      );
+
+      const modal = root.querySelector('[data-tisso-modal]');
+      const dialog = modal.querySelector('.tisso-modal__dialog');
+      const modalImage = root.querySelector('[data-tisso-modal-image]');
+      const modalTitle = root.querySelector('[data-tisso-modal-title]');
+      const modalPrice = root.querySelector('[data-tisso-modal-price]');
+      const modalDescription = root.querySelector('[data-tisso-modal-description]');
+      const variantsContainer = root.querySelector('[data-tisso-variants]');
+      const form = root.querySelector('[data-tisso-product-form]');
+      const errorEl = root.querySelector('[data-tisso-error]');
+      const addButton = root.querySelector('[data-tisso-add]');
+      const addLabel = root.querySelector('[data-tisso-add-label]');
+
+      const POPUP_MARGIN = 16;
+      const BODY_OPEN_CLASS = 'tisso-modal-open-{{ section.id }}';
+
+      let activeProduct = null;
+      let activeTrigger = null;
+      let previousActiveElement = null;
+      let closeTimer = null;
+
+      // Approximate named colours so the segmented buttons show a real
+      // colour swatch instead of always defaulting to plain white.
+      const COLOR_KEYWORDS = {
+        black: '#000000',
+        white: '#ffffff',
+        blue: '#33578f',
+        navy: '#1e2a4a',
+        red: '#8f1d34',
+        grey: '#b5b5b5',
+        gray: '#b5b5b5',
+        green: '#2f6b3a',
+        olive: '#6b6b3a',
+        beige: '#e3d5b8',
+        cream: '#f2ead9',
+        tan: '#cdb08a',
+        brown: '#6b4a30',
+        pink: '#e59bb0',
+        yellow: '#e3c23c',
+        orange: '#dd7a2c',
+        purple: '#6b4b9a',
+        khaki: '#b3a97e',
+        denim: '#3f5872',
+        multi: 'conic-gradient(#8f1d34,#e3c23c,#2f6b3a,#33578f,#6b4b9a,#8f1d34)'
+      };
+
+      const resolveSwatchColor = (value) => {
+        const key = String(value || '').trim().toLowerCase();
+        if (COLOR_KEYWORDS[key]) return COLOR_KEYWORDS[key];
+        return key || '#e5e5e5';
+      };
+
+      const setImage = (url, alt) => {
+        if (!url) {
+          modalImage.removeAttribute('src');
+          modalImage.alt = '';
+          modalImage.hidden = true;
+          return;
+        }
+
+        modalImage.src = url;
+        modalImage.alt = alt || '';
+        modalImage.hidden = false;
+      };
+
+      const clearError = () => {
+        errorEl.hidden = true;
+        errorEl.textContent = '';
+      };
+
+      const showError = (message) => {
+        errorEl.textContent = message;
+        errorEl.hidden = false;
+      };
+
+      const isSimpleProduct = (product) => {
+        return (
+          product?.variants?.length === 1 &&
+          product.options?.length === 1 &&
+          String(product.options[0].name).trim().toLowerCase() === 'title'
+        );
+      };
+
+      const getSelectedOptions = () => {
+        if (!activeProduct || !activeProduct.options) return [];
+
+        if (isSimpleProduct(activeProduct)) {
+          return activeProduct.variants[0].options.slice(0, activeProduct.options.length);
+        }
+
+        return activeProduct.options.map((option, index) => {
+          const select = form.querySelector(
+            `select[name="option-${index}"]`
+          );
+
+          if (select) {
+            return select.value || null;
+          }
+
+          const checked = form.querySelector(
+            `input[name="option-${index}"]:checked`
+          );
+
+          return checked ? checked.value : null;
+        });
+      };
+
+      const findVariant = () => {
+        if (!activeProduct) return null;
+        if (isSimpleProduct(activeProduct)) return activeProduct.variants[0] || null;
+
+        const selectedOptions = getSelectedOptions();
+
+        return activeProduct.variants.find((variant) => {
+          return variant.options.every((value, index) => {
+            return value === selectedOptions[index];
+          });
+        }) || null;
+      };
+
+      const getPossibleVariant = (optionIndex, optionValue) => {
+        if (!activeProduct) return null;
+        if (isSimpleProduct(activeProduct)) return activeProduct.variants[0] || null;
+
+        const selectedOptions = getSelectedOptions();
+        selectedOptions[optionIndex] = optionValue;
+
+        return activeProduct.variants.find((variant) => {
+          return variant.options.every((value, index) => {
+            if (index === optionIndex) return value === optionValue;
+            if (!selectedOptions[index]) return true;
+            return value === selectedOptions[index];
+          });
+        }) || null;
+      };
+
+      const updateVariantAvailability = () => {
+        if (!activeProduct) return;
+
+        activeProduct.options.forEach((option, optionIndex) => {
+          const control = form.querySelector(`[name="option-${optionIndex}"]`);
+
+          if (!control) return;
+
+          if (control.tagName === 'SELECT') {
+            Array.from(control.options).forEach((optionEl) => {
+              if (!optionEl.value) return;
+
+              const possible = getPossibleVariant(optionIndex, optionEl.value);
+              optionEl.disabled = !possible || !possible.available;
+            });
+          } else {
+            form.querySelectorAll(
+              `input[name="option-${optionIndex}"]`
+            ).forEach((input) => {
+              const possible = getPossibleVariant(optionIndex, input.value);
+              input.disabled = !possible || !possible.available;
+
+              if (input.disabled && input.checked) {
+                const selectedOptions = getSelectedOptions();
+                selectedOptions[optionIndex] = input.value;
+
+                const exactVariant = activeProduct.variants.find((variant) =>
+                  variant.options.every((value, index) => {
+                    return !selectedOptions[index] ||
+                      value === selectedOptions[index];
+                  })
+                );
+
+                if (!exactVariant) input.checked = false;
+              }
+            });
+          }
+        });
+
+        const variant = findVariant();
+
+        if (variant) {
+          if (variant.featuredImage) {
+            setImage(variant.featuredImage, activeProduct.title);
+          }
+
+          modalPrice.textContent = variant.priceFormatted;
+          addButton.disabled = !variant.available;
+          addLabel.textContent = variant.available ? 'ADD TO CART' : 'SOLD OUT';
+        } else {
+          modalPrice.textContent = activeProduct.priceFormatted || '';
+          addButton.disabled = true;
+          addLabel.textContent = 'SELECT OPTIONS';
+        }
+
+        syncSizeControls();
+      };
+
+      const renderColorOption = (option, optionIndex) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'tisso-variant';
+
+        const label = document.createElement('span');
+        label.className = 'tisso-variant__label';
+        label.textContent = option.name;
+        wrapper.appendChild(label);
+
+        const values = document.createElement('div');
+        values.className = 'tisso-variant__values';
+
+        option.values.forEach((value, valueIndex) => {
+          const valueWrapper = document.createElement('div');
+          valueWrapper.className = 'tisso-variant__value';
+
+          const id = `tisso-${sectionId}-option-${optionIndex}-${valueIndex}`;
+
+          const input = document.createElement('input');
+          input.type = 'radio';
+          input.className = 'tisso-variant__input';
+          input.id = id;
+          input.name = `option-${optionIndex}`;
+          input.value = value;
+
+          const button = document.createElement('label');
+          button.className = 'tisso-variant__button';
+          button.setAttribute('for', id);
+
+          const swatch = document.createElement('span');
+          swatch.className = 'tisso-variant__swatch';
+          swatch.setAttribute('aria-hidden', 'true');
+          swatch.style.background = resolveSwatchColor(value);
+
+          const text = document.createElement('span');
+          text.className = 'tisso-variant__button-text';
+          text.textContent = value;
+
+          button.appendChild(swatch);
+          button.appendChild(text);
+
+          input.addEventListener('change', updateVariantAvailability);
+
+          valueWrapper.appendChild(input);
+          valueWrapper.appendChild(button);
+          values.appendChild(valueWrapper);
+        });
+
+        wrapper.appendChild(values);
+        return wrapper;
+      };
+
+      // Closes every open custom size dropdown except an optional one to skip.
+      const closeAllSizeLists = (exceptEl) => {
+        form.querySelectorAll('[data-tisso-size]').forEach((sizeEl) => {
+          if (sizeEl === exceptEl) return;
+
+          sizeEl.dataset.open = 'false';
+          const trigger = sizeEl.querySelector('.tisso-size__trigger');
+          const list = sizeEl.querySelector('.tisso-size__list');
+          if (trigger) trigger.setAttribute('aria-expanded', 'false');
+          if (list) list.hidden = true;
+        });
+      };
+
+      const isAnySizeListOpen = () => {
+        return !!form.querySelector('[data-tisso-size][data-open="true"]');
+      };
+
+      const renderDropdownOption = (option, optionIndex) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'tisso-variant';
+
+        const placeholderText = `Choose your ${option.name.toLowerCase()}`;
+
+        const label = document.createElement('label');
+        label.className = 'tisso-variant__label';
+        label.setAttribute('for', `tisso-${sectionId}-select-${optionIndex}`);
+        label.textContent = option.name;
+        wrapper.appendChild(label);
+
+        // Hidden native select stays the source of truth for value/availability logic.
+        const select = document.createElement('select');
+        select.className = 'tisso-variant__select-native';
+        select.id = `tisso-${sectionId}-select-${optionIndex}`;
+        select.name = `option-${optionIndex}`;
+        select.tabIndex = -1;
+        select.setAttribute('aria-hidden', 'true');
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = placeholderText;
+        select.appendChild(placeholder);
+
+        option.values.forEach((value) => {
+          const optionEl = document.createElement('option');
+          optionEl.value = value;
+          optionEl.textContent = value;
+          select.appendChild(optionEl);
+        });
+
+        // Visible custom control (Component 213 closed/open states).
+        const sizeEl = document.createElement('div');
+        sizeEl.className = 'tisso-size';
+        sizeEl.dataset.tissoSize = '';
+        sizeEl.dataset.open = 'false';
+
+        const trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'tisso-size__trigger';
+        trigger.setAttribute('aria-haspopup', 'listbox');
+        trigger.setAttribute('aria-expanded', 'false');
+
+        const valueSpan = document.createElement('span');
+        valueSpan.className = 'tisso-size__value';
+        valueSpan.textContent = placeholderText;
+
+        const chevron = document.createElement('span');
+        chevron.className = 'tisso-size__chevron';
+        chevron.setAttribute('aria-hidden', 'true');
+
+        trigger.appendChild(valueSpan);
+        trigger.appendChild(chevron);
+
+        const list = document.createElement('ul');
+        list.className = 'tisso-size__list';
+        list.setAttribute('role', 'listbox');
+        list.hidden = true;
+
+        option.values.forEach((value) => {
+          const item = document.createElement('li');
+          item.className = 'tisso-size__option';
+          item.setAttribute('role', 'option');
+          item.setAttribute('tabindex', '0');
+          item.dataset.value = value;
+          item.textContent = value;
+
+          const chooseSize = () => {
+            if (item.getAttribute('aria-disabled') === 'true') return;
+
+            const matchingOption = Array.from(select.options).find(
+              (optionEl) => optionEl.value === value
+            );
+
+            if (!matchingOption) return;
+
+            /*
+             * Set the real select first. The select remains the single
+             * source of truth used by getSelectedOptions()/findVariant().
+             * Then update the UI immediately so the selected size is visible.
+             */
+            select.value = matchingOption.value;
+
+            sizeEl.dataset.open = 'false';
+            trigger.setAttribute('aria-expanded', 'false');
+            list.hidden = true;
+
+            updateVariantAvailability();
+            syncSizeControls();
+
+            trigger.focus();
+          };
+
+          item.addEventListener('click', chooseSize);
+          item.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              chooseSize();
+            }
+          });
+
+          list.appendChild(item);
+        });
+
+        trigger.addEventListener('click', () => {
+          const willOpen = sizeEl.dataset.open !== 'true';
+          closeAllSizeLists(sizeEl);
+
+          sizeEl.dataset.open = willOpen ? 'true' : 'false';
+          trigger.setAttribute('aria-expanded', String(willOpen));
+          list.hidden = !willOpen;
+        });
+
+        sizeEl.appendChild(select);
+        sizeEl.appendChild(trigger);
+        sizeEl.appendChild(list);
+        wrapper.appendChild(sizeEl);
+        return wrapper;
+      };
+
+      // Keeps every custom size trigger/list in sync with its hidden native select.
+      const syncSizeControls = () => {
+        form.querySelectorAll('[data-tisso-size]').forEach((sizeEl) => {
+          const select = sizeEl.querySelector('.tisso-variant__select-native');
+          const trigger = sizeEl.querySelector('.tisso-size__trigger');
+          const valueSpan = sizeEl.querySelector('.tisso-size__value');
+          const items = sizeEl.querySelectorAll('.tisso-size__option');
+
+          if (!select || !trigger || !valueSpan) return;
+
+          const selectedOption = select.options[select.selectedIndex];
+          const hasValue = selectedOption && selectedOption.value;
+          valueSpan.textContent = hasValue
+            ? selectedOption.textContent
+            : select.options[0].textContent;
+
+          const isFullyDisabled = Array.from(select.options).every((optionEl) => {
+            return !optionEl.value || optionEl.disabled;
+          });
+          trigger.disabled = isFullyDisabled;
+
+          items.forEach((item) => {
+            const matchingOption = Array.from(select.options).find(
+              (optionEl) => optionEl.value === item.dataset.value
+            );
+
+            const disabled = !matchingOption || matchingOption.disabled;
+            item.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+            item.classList.toggle('is-selected', hasValue && matchingOption && matchingOption.value === selectedOption.value);
+          });
+        });
+      };
+
+      const renderVariants = (product) => {
+        variantsContainer.innerHTML = '';
+
+        if (!product.options || !product.options.length || isSimpleProduct(product)) {
+          addButton.disabled = !product.available;
+          addLabel.textContent = product.available ? 'ADD TO CART' : 'SOLD OUT';
+          return;
+        }
+
+        const isColorOption = (option) => {
+          const name = option.name.trim().toLowerCase();
+          return name === 'color' || name === 'colour';
+        };
+
+        // Figma always shows Color above Size, so render in that fixed
+        // order regardless of how the product's options are configured.
+        const orderedOptions = product.options
+          .map((option, optionIndex) => ({ option, optionIndex }))
+          .sort((a, b) => {
+            const aIsColor = isColorOption(a.option) ? 0 : 1;
+            const bIsColor = isColorOption(b.option) ? 0 : 1;
+            if (aIsColor !== bIsColor) return aIsColor - bIsColor;
+            return a.optionIndex - b.optionIndex;
+          });
+
+        orderedOptions.forEach(({ option, optionIndex }) => {
+          if (isColorOption(option)) {
+            variantsContainer.appendChild(
+              renderColorOption(option, optionIndex)
+            );
+          } else {
+            variantsContainer.appendChild(
+              renderDropdownOption(option, optionIndex)
+            );
+          }
+        });
+
+        // Match the Figma default: first available value is selected.
+        orderedOptions.forEach(({ option, optionIndex }) => {
+          const isColor = isColorOption(option);
+
+          if (isColor) {
+            const inputs = form.querySelectorAll(
+              `input[name="option-${optionIndex}"]`
+            );
+
+            const firstAvailable = Array.from(inputs).find((input) => {
+              const possible = getPossibleVariant(optionIndex, input.value);
+              return possible && possible.available;
+            });
+
+            if (firstAvailable) firstAvailable.checked = true;
+          } else {
+            const select = form.querySelector(
+              `select[name="option-${optionIndex}"]`
+            );
+
+            if (select) {
+              const firstAvailable = Array.from(select.options).find((optionEl) => {
+                if (!optionEl.value) return false;
+                const possible = getPossibleVariant(optionIndex, optionEl.value);
+                return possible && possible.available;
+              });
+
+              if (firstAvailable) select.value = firstAvailable.value;
+            }
+          }
+        });
+
+        updateVariantAvailability();
+      };
+
+      /*
+       * Anchors the popup near the hotspot that triggered it, flipping
+       * sides and clamping to the viewport so it never overflows. This
+       * only ever writes to the dialog's own left/top — it never touches
+       * anything in normal document flow, so the section can't jump.
+       */
+      const positionPopup = (triggerEl) => {
+        if (!triggerEl || !dialog) return;
+
+        const triggerRect = triggerEl.getBoundingClientRect();
+        const dialogRect = dialog.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        let left = triggerRect.right + 12;
+        let top = triggerRect.top - (dialogRect.height / 2) + (triggerRect.height / 2);
+
+        // Flip to the left of the hotspot if it would overflow the right edge.
+        if (left + dialogRect.width + POPUP_MARGIN > viewportWidth) {
+          left = triggerRect.left - dialogRect.width - 12;
+        }
+
+        // Neither side fits (narrow viewport) — centre it instead.
+        if (left < POPUP_MARGIN || left + dialogRect.width + POPUP_MARGIN > viewportWidth) {
+          left = (viewportWidth - dialogRect.width) / 2;
+        }
+
+        left = Math.max(POPUP_MARGIN, Math.min(left, viewportWidth - dialogRect.width - POPUP_MARGIN));
+
+        if (top < POPUP_MARGIN) top = POPUP_MARGIN;
+        if (top + dialogRect.height + POPUP_MARGIN > viewportHeight) {
+          top = viewportHeight - dialogRect.height - POPUP_MARGIN;
+        }
+        top = Math.max(POPUP_MARGIN, top);
+
+        dialog.style.left = `${left}px`;
+        dialog.style.top = `${top}px`;
+      };
+
+      const handleReposition = () => positionPopup(activeTrigger);
+
+      /*
+       * Locking scroll with overflow:hidden removes the scrollbar, which
+       * shrinks the viewport width and shifts everything left — that is
+       * the "jerk". Compensating with padding-right equal to the
+       * scrollbar's width keeps the page perfectly still.
+       */
+      const lockScroll = () => {
+        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+        if (scrollbarWidth > 0) {
+          document.body.style.paddingRight = `${scrollbarWidth}px`;
+        }
+        document.body.classList.add(BODY_OPEN_CLASS);
+      };
+
+      const unlockScroll = () => {
+        document.body.classList.remove(BODY_OPEN_CLASS);
+        document.body.style.paddingRight = '';
+      };
+
+      const openModal = (product, triggerEl) => {
+        if (closeTimer) {
+          clearTimeout(closeTimer);
+          closeTimer = null;
+        }
+
+        activeProduct = product;
+        activeTrigger = triggerEl;
+        previousActiveElement = document.activeElement;
+
+        if (triggerEl) triggerEl.setAttribute('aria-expanded', 'true');
+
+        modalTitle.textContent = product.title;
+        modalPrice.textContent = product.priceFormatted || '';
+        modalDescription.textContent = product.description || '';
+        setImage(product.featuredImage, product.title);
+
+        clearError();
+        renderVariants(product);
+
+        modal.hidden = false;
+        lockScroll();
+        positionPopup(triggerEl);
+
+        requestAnimationFrame(() => {
+          modal.classList.add('is-open');
+        });
+
+        const firstFocusable = modal.querySelector(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled])'
+        );
+
+        if (firstFocusable) firstFocusable.focus();
+
+        window.addEventListener('resize', handleReposition);
+        window.addEventListener('scroll', handleReposition, true);
+      };
+
+      const closeModal = () => {
+        if (modal.hidden) return;
+
+        modal.classList.remove('is-open');
+        closeAllSizeLists();
+
+        if (activeTrigger) activeTrigger.setAttribute('aria-expanded', 'false');
+
+        window.removeEventListener('resize', handleReposition);
+        window.removeEventListener('scroll', handleReposition, true);
+
+        const finish = () => {
+          modal.hidden = true;
+          unlockScroll();
+          activeProduct = null;
+          activeTrigger = null;
+          closeTimer = null;
+        };
+
+        if (dialog) {
+          dialog.addEventListener('transitionend', finish, { once: true });
+          closeTimer = setTimeout(finish, 220);
+        } else {
+          finish();
+        }
+
+        if (previousActiveElement && typeof previousActiveElement.focus === 'function') {
+          previousActiveElement.focus();
+        }
+      };
+
+      const normalizeOptionValue = (value) => {
+        return String(value || '')
+          .trim()
+          .replace(/\s+/g, ' ')
+          .toLowerCase();
+      };
+
+      /*
+       * The companion product is selected dynamically in the Theme Editor.
+       * Its first available variant ID is resolved by Liquid above, then
+       * supplied here as a plain numeric Shopify variant ID.
+       */
+      const getCompanionVariant = () => {
+        if (!companion) return null;
+
+        if (companion.variantId) {
+          return {
+            id: Number(companion.variantId),
+            available: true
+          };
+        }
+
+        if (Array.isArray(companion.variants)) {
+          const available = companion.variants.find(
+            (variant) => variant && variant.available && variant.id
+          );
+
+          return available || null;
+        }
+
+        return null;
+      };
+
+      const shouldAddCompanion = (product, variant) => {
+        if (!product || !variant || !companion) return false;
+
+        /*
+         * Check the actual controls the customer selected, rather than
+         * relying on variant.options alone. This makes the Black + M rule
+         * work even when Shopify's option ordering differs.
+         */
+        const optionNames = (product.options || []).map((option) =>
+          normalizeOptionValue(option.name)
+        );
+
+        const colorIndex = optionNames.findIndex(
+          (name) => name === 'color' || name === 'colour'
+        );
+        const sizeIndex = optionNames.indexOf('size');
+
+        if (colorIndex === -1 || sizeIndex === -1) return false;
+
+        const selectedOptions = getSelectedOptions();
+
+        const selectedColor = normalizeOptionValue(
+          selectedOptions[colorIndex]
+        );
+        const selectedSize = normalizeOptionValue(
+          selectedOptions[sizeIndex]
+        );
+
+        return selectedColor === 'black' && selectedSize === 'm';
+      };
+
+      const addItemsToCart = async (items) => {
+        const response = await fetch(`${shopRoot}cart/add.js`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            items: items.map((item) => ({
+              id: Number(item.id),
+              quantity: Number(item.quantity || 1)
+            }))
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.description ||
+            data.message ||
+            'Unable to add product to cart.'
+          );
+        }
+
+        return data;
+      };
+
+      root.querySelectorAll('[data-product-index]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const product = products[Number(button.dataset.productIndex)];
+
+          if (product) {
+            openModal(product, button);
+          }
+        });
+      });
+
+      root.querySelectorAll('[data-tisso-close]').forEach((element) => {
+        element.addEventListener('click', closeModal);
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+
+        if (isAnySizeListOpen()) {
+          closeAllSizeLists();
+          return;
+        }
+
+        if (!modal.hidden) {
+          closeModal();
+        }
+      });
+
+      document.addEventListener('click', (event) => {
+        if (modal.hidden || !isAnySizeListOpen()) return;
+        if (event.target.closest('[data-tisso-size]')) return;
+
+        closeAllSizeLists();
+      });
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        clearError();
+
+        const variant = findVariant();
+
+        if (!variant) {
+          showError('Please select all product options.');
+          return;
+        }
+
+        if (!variant.available) {
+          showError('This variant is currently unavailable.');
+          return;
+        }
+
+        /*
+         * Dawn behavior:
+         * 1. Add the selected product variant.
+         * 2. If the selected variant is Black + Medium, also add the
+         *    dynamically configured Automatic companion product.
+         * 3. Redirect to Shopify's normal cart page.
+         *
+         * There is intentionally no cart drawer refresh, cart counter
+         * update, custom cart event, or Horizon real-time cart logic.
+         */
+        const items = [
+          {
+            id: variant.id,
+            quantity: 1
+          }
+        ];
+
+        const needsCompanion = shouldAddCompanion(activeProduct, variant);
+
+        if (needsCompanion) {
+          const companionVariant = getCompanionVariant();
+
+          if (!companionVariant || !companionVariant.id) {
+            showError(
+              'The Automatic companion product is selected, but it has no available variant.'
+            );
+            return;
+          }
+
+          if (Number(companionVariant.id) === Number(variant.id)) {
+            showError('The companion product cannot use the same variant.');
+            return;
+          }
+
+          items.push({
+            id: Number(companionVariant.id),
+            quantity: 1
+          });
+        }
+
+        addButton.disabled = true;
+        addLabel.textContent = 'ADDING...';
+
+        try {
+          await addItemsToCart(items);
+
+          // Go directly to the standard Dawn/Shopify cart page.
+          window.location.assign(`${shopRoot}cart`);
+        } catch (error) {
+          showError(
+            error.message ||
+            'Unable to add the product to the cart.'
+          );
+
+          addButton.disabled = false;
+          addLabel.textContent = 'ADD TO CART';
+        }
+      });
+    })();
+  </script>
+</section>
+
+{% schema %}
+{
+  "name": "Tisso Vision Grid",
+  "tag": "section",
+  "class": "section-tisso-vision-grid",
+  "settings": [
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Tisso vision in the wild"
+    },
+    {
+      "type": "product",
+      "id": "companion_product",
+      "label": "Automatic companion product",
+      "info": "Select Soft Winter Jacket. It is automatically added when the selected product has Color = Black and Size = Medium."
+    },
+    {
+      "type": "range",
+      "id": "max_width",
+      "label": "Maximum content width",
+      "min": 900,
+      "max": 1800,
+      "step": 20,
+      "unit": "px",
+      "default": 1600
+    },
+    {
+      "type": "range",
+      "id": "grid_gap",
+      "label": "Grid gap",
+      "min": 0,
+      "max": 40,
+      "step": 2,
+      "unit": "px",
+      "default": 14
+    },
+    {
+      "type": "range",
+      "id": "section_padding",
+      "label": "Desktop section padding",
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "px",
+      "default": 35
+    },
+    {
+      "type": "range",
+      "id": "mobile_section_padding",
+      "label": "Mobile section padding",
+      "min": 0,
+      "max": 60,
+      "step": 2,
+      "unit": "px",
+      "default": 18
+    },
+    {
+      "type": "color",
+      "id": "background",
+      "label": "Background",
+      "default": "#eeeeee"
+    }
+  ],
+  "blocks": [
+    {
+      "type": "product",
+      "name": "Product",
+      "limit": 6,
+      "settings": [
+        {
+          "type": "product",
+          "id": "product",
+          "label": "Product"
+        },
+        {
+          "type": "range",
+          "id": "hotspot_x",
+          "label": "Plus icon horizontal position",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "unit": "%",
+          "default": 65
+        },
+        {
+          "type": "range",
+          "id": "hotspot_y",
+          "label": "Plus icon vertical position",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "unit": "%",
+          "default": 53
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Tisso Vision Grid",
+      "blocks": [
+        {
+          "type": "product",
+          "settings": {
+            "hotspot_x": 65,
+            "hotspot_y": 53
+          }
+        },
+        {
+          "type": "product",
+          "settings": {
+            "hotspot_x": 83,
+            "hotspot_y": 50
+          }
+        },
+        {
+          "type": "product",
+          "settings": {
+            "hotspot_x": 82,
+            "hotspot_y": 20
+          }
+        },
+        {
+          "type": "product",
+          "settings": {
+            "hotspot_x": 67,
+            "hotspot_y": 30
+          }
+        },
+        {
+          "type": "product",
+          "settings": {
+            "hotspot_x": 49,
+            "hotspot_y": 25
+          }
+        },
+        {
+          "type": "product",
+          "settings": {
+            "hotspot_x": 77,
+            "hotspot_y": 55
+          }
+        }
+      ]
+    }
+  ]
+}
+{% endschema %}
